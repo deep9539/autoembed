@@ -1,23 +1,29 @@
-# Reference anchors: score off-the-shelf models on the DEV proxy for comparison.
-# Writes the results to runs/reference.md.
-from task import evaluate, DEV_TASKS, RUNS_DIR, BASE_MODEL
+# Reference ladder on the held-out: raw base (floor), same-base anchor, strong small
+# encoder. Written to runs/reference.md. SOTA (e.g. Qwen3-Embedding) is a cited line.
+from score import score_model
+from task import BASE_MODEL, RUNS_DIR
 
-MODELS = [BASE_MODEL,                                  # raw base = the floor to beat
-          "sentence-transformers/all-mpnet-base-v2"]   # same-base anchor (fully trained)
+LADDER = [
+    (BASE_MODEL, "floor: raw base"),
+    ("intfloat/e5-base-v2", "anchor: same base, fully fine-tuned"),
+    ("BAAI/bge-base-en-v1.5", "strong small encoder"),
+]
 
 
 def main():
     lines = []
-    for m in MODELS:
+    for model, label in LADDER:
         try:
-            s, _ = evaluate(model_path=m, tasks=DEV_TASKS, tag="ref")
-            line = f"- {s:.4f}  {m}"
+            mt, mtask, _, _ = score_model(model, tag="ref")
+            line = f"- type={mt:.4f} task={mtask:.4f}  {model}  ({label})"
         except Exception as e:
-            line = f"- FAIL  {m}: {repr(e)[:120]}"
+            line = f"- FAIL  {model}: {repr(e)[:120]}"
         print(line)
         lines.append(line)
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
     (RUNS_DIR / "reference.md").write_text(
-        "# Reference anchors (DEV proxy)\n\n" + "\n".join(lines) + "\n")
+        "# Reference ladder — held-out: full MTEB(eng, v2), Mean over task types\n\n"
+        + "\n".join(lines) + "\n")
 
 
 if __name__ == "__main__":

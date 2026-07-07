@@ -1,4 +1,4 @@
-# The task: base model, dev eval, and contamination check.
+# The task: fixed base model + a training-vs-eval contamination check.
 import json
 import os
 from pathlib import Path
@@ -6,41 +6,14 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 RUNS_DIR = ROOT / "runs"
 MODEL_DIR = ROOT / "final_model"  # the agent's submitted model
-BASE_MODEL = os.environ.get("AUTOEMBED_BASE_MODEL", "microsoft/mpnet-base")
+BASE_MODEL = os.environ.get("AUTOEMBED_BASE_MODEL", "intfloat/e5-base-unsupervised")
 
-# Dev proxy, disjoint from the held-out.
-DEV_TASKS = ["NanoArguAnaRetrieval", "NanoSCIDOCSRetrieval",   # retrieval
-             "STS12", "STSBenchmark",                          # STS
-             "Banking77Classification",                        # classification
-             "StackExchangeClustering.v2",                     # clustering
-             "AskUbuntuDupQuestions",                          # reranking
-             "SprintDuplicateQuestions"]                       # pair classification
-TASK_LANGS = ["eng"]
+EVAL_BENCHMARK = "MTEB(eng, v2)"   # the hidden held-out; the agent never scores on it
 
 
-def _resolve(tasks):   # accept task names or task objects
+def _eval_tasks():
     import mteb
-    if tasks and isinstance(tasks[0], str):
-        return mteb.get_tasks(tasks=tasks, languages=TASK_LANGS)
-    return list(tasks)
-
-
-def evaluate(model_path=MODEL_DIR, tasks=DEV_TASKS, tag="dev"):
-    import mteb
-    from sentence_transformers import SentenceTransformer
-    task_objs = _resolve(tasks)
-    type_of = {t.metadata.name: t.metadata.type for t in task_objs}
-    model = SentenceTransformer(str(model_path))
-    results = mteb.MTEB(tasks=task_objs).run(
-        model, output_folder=str(RUNS_DIR / "mteb" / tag),
-        verbosity=0, overwrite_results=True)
-    per_task = {(getattr(r, "task_name", None) or r.task.metadata.name): float(r.get_score())
-                for r in results}
-    per_type = {}
-    for name, sc in per_task.items():
-        per_type.setdefault(type_of.get(name, name), []).append(sc)
-    type_means = [sum(v) / len(v) for v in per_type.values()]
-    return sum(type_means) / len(type_means), per_task
+    return mteb.get_benchmark(EVAL_BENCHMARK).tasks
 
 
 def _norm(s):
@@ -64,22 +37,21 @@ def _collect(obj, out, cap):
             _collect(obj[col], out, cap)
 
 
-def _eval_texts(tasks, cap=200_000):
+def _eval_texts(tasks=None, cap=200_000):
     out = set()
-    for t in _resolve(tasks):
+    for t in (tasks or _eval_tasks()):
         t.load_data()
         for attr in ("corpus", "queries", "dataset"):
             _collect(getattr(t, attr, None), out, cap)
     return out
 
 
-def check_contamination(train_dataset, tasks=None, sample=100_000):
-    # Exact-match overlap of training text with the eval; writes a training-text sample.
-    tasks = tasks or DEV_TASKS
-    evalset = _eval_texts(tasks)
+def check_contamination(train_dataset, sample=100_000):
+    # Exact-match overlap of your training text with the eval; writes a training-text sample.
+    evalset = _eval_texts()
     n = min(sample, len(train_dataset))
     ds = train_dataset.select(range(n))
-    cols = [c for c in ("anchor", "positive", "negative") if c in ds.column_names]
+    cols = [c for c in ("anchor", "positive", "negative", "query", "text") if c in ds.column_names]
     train_texts, hits, examples = set(), 0, []
     for col in cols:
         for s in ds[col]:

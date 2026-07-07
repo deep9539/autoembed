@@ -12,10 +12,8 @@ dependencies = [
 ]
 
 [tool.uv]
-# torch is pinned to a CUDA wheel index so the GPU is actually used (the default
-# index can resolve a wheel your driver rejects -> silent CPU fallback). The pin
-# below targets CUDA 12.8; change the index URL to match your driver, or drop
-# the [tool.uv.sources]/[[tool.uv.index]] blocks to use the default wheel.
+# torch pinned to a CUDA 12.8 wheel index. Change the URL to match your driver,
+# or drop the [tool.uv.sources]/[[tool.uv.index]] blocks for the default wheel.
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }

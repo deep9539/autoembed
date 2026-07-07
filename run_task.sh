@@ -10,7 +10,8 @@ AGENT_CONFIG="${2:-}"
 HOURS="${3:-${HOURS:-3}}"
 MODE="${MODE:-native}"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-BASE_MODEL="${AUTOEMBED_BASE_MODEL:-microsoft/mpnet-base}"
+BASE_MODEL="${AUTOEMBED_BASE_MODEL:-intfloat/e5-base-unsupervised}"
+export AUTOEMBED_BASE_MODEL="$BASE_MODEL"   # agent, display, and meta.json all agree
 
 RUN_ID="$(date +%Y%m%d-%H%M%S)_${AGENT}"
 RESULTS="$ROOT/results/$RUN_ID"
@@ -49,7 +50,8 @@ sandbox 'uv run --no-sync python check_cuda.py' \
 START=$(date +%s)
 set +e
 sandbox "timeout --signal=TERM --kill-after=30s $LIMIT bash solve.sh" 2>&1 \
-  | python3 "$ROOT/timestamp_lines.py" | tee "$RESULTS/trace.log"
+  | python3 "$ROOT/timestamp_lines.py" | tee "$RESULTS/trace.log" \
+  | { python3 "$ROOT/pretty_stream.py" 2>/dev/null || true; cat >/dev/null; }
 rc=${PIPESTATUS[0]}
 set -e
 END=$(date +%s)
@@ -66,18 +68,19 @@ else
   echo ">> no final_model produced — skipping scoring"
 fi
 
+# workspace snapshot: agent's code + logs, minus weights, venv, caches
+( cd "$WORK" && tar cf - --exclude=final_model --exclude=.venv --exclude=.claude-agent \
+    --exclude=__pycache__ --exclude='*.safetensors' --exclude='*.bin' --exclude='*.pt' \
+    --exclude='*.ckpt' . 2>/dev/null ) \
+  | ( mkdir -p "$RESULTS/workspace" && tar xf - -C "$RESULTS/workspace" 2>/dev/null ) || true
+
 BUDGET_HIT=$([ "$rc" -eq 124 ] && echo true || echo false)
+NODE="$(hostname 2>/dev/null)"
+GPU_NAME="$(nvidia-smi --query-gpu=name --format=csv,noheader -i 0 2>/dev/null || true)"
+FINAL_FILES="$(ls -1A "$WORK/final_model" 2>/dev/null | wc -l | tr -d ' ')"
 RUN_ID="$RUN_ID" AGENT="$AGENT" AGENT_CONFIG="$AGENT_CONFIG" BASE_MODEL="$BASE_MODEL" \
 HOURS="$HOURS" MODE="$MODE" DURATION="$((END - START))" RC="$rc" BUDGET_HIT="$BUDGET_HIT" \
-python3 - "$RESULTS/meta.json" <<'PY'
-import json, os, sys
-json.dump({
-    "run_id": os.environ["RUN_ID"], "agent": os.environ["AGENT"],
-    "agent_config": os.environ["AGENT_CONFIG"], "base_model": os.environ["BASE_MODEL"],
-    "budget_hours": int(os.environ["HOURS"]), "mode": os.environ["MODE"],
-    "duration_s": int(os.environ["DURATION"]), "agent_exit": int(os.environ["RC"]),
-    "budget_hit": os.environ["BUDGET_HIT"] == "true",
-}, open(sys.argv[1], "w"), indent=2)
-PY
+NODE="$NODE" GPU_NAME="$GPU_NAME" FINAL_FILES="$FINAL_FILES" \
+python3 "$ROOT/run_meta.py" "$RESULTS/trace.log" "$RESULTS/meta.json"
 
 echo ">> done: $RESULTS"

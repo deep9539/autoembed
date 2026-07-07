@@ -8,7 +8,7 @@
 # Tunables via env: PART (partition), TIME (wall limit).
 set -euo pipefail
 PART="${PART:-guest}"
-TIME="${TIME:-01:00:00}"  # > 30min train budget + data load + eval
+TIME="${TIME:-01:00:00}"  # default wall limit
 PTY=""
 [ -t 1 ] && PTY="--pty"  # interactive only; --pty breaks GPU init when backgrounded
 exec srun --partition="$PART" --gres=gpu:1 --time="$TIME" \
