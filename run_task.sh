@@ -19,6 +19,7 @@ mkdir -p "$RESULTS"
 
 WORK="$(mktemp -d)"
 cp "$ROOT"/{task.py,instructions.md,timer.sh,check_cuda.py,pyproject.toml,uv.lock} "$WORK"/
+[ -f "$ROOT/_eval_texts.json" ] && cp "$ROOT/_eval_texts.json" "$WORK"/   # fast contamination check
 cp "$ROOT/agents/$AGENT/solve.sh" "$WORK/solve.sh"
 mkdir -p "$WORK/final_model"
 

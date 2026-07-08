@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 RUNS_DIR = ROOT / "runs"
 MODEL_DIR = ROOT / "final_model"  # the agent's submitted model
+_EVAL_CACHE = ROOT / "_eval_texts.json"   # cached eval-text set (fast contamination check)
 BASE_MODEL = os.environ.get("AUTOEMBED_BASE_MODEL", "intfloat/e5-base-unsupervised")
 
 EVAL_BENCHMARK = "MTEB(eng, v2)"   # the hidden held-out; the harness scores it
@@ -94,12 +95,17 @@ def _collect(obj, out, cap):
 
 
 def _eval_texts(cap=200_000):
+    # The eval-text set is deterministic, so compute once and cache it — keeps
+    # check_contamination fast (no re-loading the whole benchmark on every call).
+    if _EVAL_CACHE.exists():
+        return set(json.loads(_EVAL_CACHE.read_text()))
     import mteb
     out = set()
     for t in mteb.get_benchmark(EVAL_BENCHMARK).tasks:
         t.load_data()
         for attr in ("corpus", "queries", "dataset"):
             _collect(getattr(t, attr, None), out, cap)
+    _EVAL_CACHE.write_text(json.dumps(sorted(out)))
     return out
 
 

@@ -11,3 +11,4 @@ __pycache__/
 
 # caches
 .cache/
+_eval_texts.json

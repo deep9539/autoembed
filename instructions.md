@@ -10,17 +10,14 @@ papers). How you iterate is up to you — but use the full budget: keep improvin
 `final_model/` until your time is nearly up rather than stopping early.
 
 ## Evaluation
-We score `final_model/` on a hidden, comprehensive English benchmark as the **mean across
-task types — retrieval, STS, classification, clustering, reranking, pair classification,
-each weighted equally**. A model strong in only one area (e.g. retrieval) scores poorly —
-aim for broad quality across all types. Scoring is plain `SentenceTransformer.encode` on
-raw text (no added prompts/prefixes).
+We score `final_model/` on a hidden, comprehensive English embedding benchmark, aggregated as
+the **equal-weight mean over its task types**. `evaluate_dev` mirrors that aggregation on
+disjoint tasks — run it to see where you stand. Scoring is plain `SentenceTransformer.encode`
+on raw text (no added prompts/prefixes).
 
 Tools you can use:
 - `evaluate_dev('final_model')` in `task.py` — a fast, multi-task validation proxy (disjoint
-  from the hidden benchmark, one task per type). It prints the equal-weight mean and a
-  per-type breakdown — optimize the mean and watch the breakdown so you don't over-specialize
-  on one type.
+  from the hidden benchmark); prints per-type scores and the equal-weight mean.
 - `check_contamination(ds)` in `task.py` — overlap of a dataset's text with the benchmark eval.
 - `bash timer.sh` — remaining budget.
 
