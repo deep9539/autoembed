@@ -1,7 +1,7 @@
 # Reference ladder on the held-out: raw base (floor), same-base anchor, strong small
 # encoder. Written to runs/reference.md. SOTA (e.g. Qwen3-Embedding) is a cited line.
-from score import score_model
-from task import BASE_MODEL, RUNS_DIR
+from score import HELDOUT_TASKS
+from task import _score, BASE_MODEL, RUNS_DIR
 
 LADDER = [
     (BASE_MODEL, "floor: raw base"),
@@ -14,15 +14,15 @@ def main():
     lines = []
     for model, label in LADDER:
         try:
-            mt, mtask, _, _ = score_model(model, tag="ref")
-            line = f"- type={mt:.4f} task={mtask:.4f}  {model}  ({label})"
+            r = _score(model, HELDOUT_TASKS, tag="ref")
+            line = f"- type={r['mean_type']:.4f} task={r['mean_task']:.4f}  {model}  ({label})"
         except Exception as e:
             line = f"- FAIL  {model}: {repr(e)[:120]}"
         print(line)
         lines.append(line)
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     (RUNS_DIR / "reference.md").write_text(
-        "# Reference ladder — held-out: full MTEB(eng, v2), Mean over task types\n\n"
+        "# Reference ladder — held-out: MTEB(eng, v2) − MindSmall, Mean over task types\n\n"
         + "\n".join(lines) + "\n")
 
 
