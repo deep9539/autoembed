@@ -1,5 +1,5 @@
 # Reference ladder on the held-out: raw base (floor), same-base anchor, strong small
-# encoder. Written to runs/reference.md. SOTA (e.g. Qwen3-Embedding) is a cited line.
+# encoder. Written to runs/reference.md.
 from score import HELDOUT_TASKS
 from task import _score, BASE_MODEL, RUNS_DIR
 

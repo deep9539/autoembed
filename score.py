@@ -9,7 +9,7 @@ import mteb
 
 from task import _score, _eval_texts, MODEL_DIR, EVAL_BENCHMARK
 
-_EXCLUDE = {"MindSmallReranking"}   # >1h/model to score (> all 40 other tasks combined)
+_EXCLUDE = {"MindSmallReranking"}   # >1h/model to score
 HELDOUT_TASKS = [t for t in mteb.get_benchmark(EVAL_BENCHMARK).tasks
                  if t.metadata.name not in _EXCLUDE]
 

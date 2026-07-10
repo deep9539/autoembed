@@ -1,6 +1,5 @@
 #!/bin/bash
-# Launch Claude Code on the task; re-prompt while budget remains so an early stop
-# (e.g. yielding to wait on a background job) resumes instead of ending the run.
+# Launch Claude Code; re-prompt on early exit until the budget is spent.
 unset OPENAI_API_KEY GEMINI_API_KEY
 export CLAUDE_CONFIG_DIR="$PWD/.claude-agent"
 export BASH_MAX_TIMEOUT_MS=36000000   # Bash-tool timeout ceiling = 10h
@@ -18,6 +17,6 @@ while :; do
     printf '%s' "$left" | grep -qiE 'exhaust|expired' && break
     mins="$(printf '%s' "$left" | grep -oE '[0-9]+' | head -1)"
     { [ -z "$mins" ] || [ "$mins" -lt 5 ]; } && break
-    sleep 60   # let any background work progress before re-prompting
+    sleep 60   # let background work progress
     printf 'You still have %s. Keep improving final_model/: check any background jobs, run evaluate_dev to see per-type scores, and continue training/iterating until the model is as good as you can make it.' "$left" | agent --continue
 done

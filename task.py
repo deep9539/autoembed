@@ -12,9 +12,7 @@ BASE_MODEL = os.environ.get("AUTOEMBED_BASE_MODEL", "intfloat/e5-base-unsupervis
 
 EVAL_BENCHMARK = "MTEB(eng, v2)"   # the hidden held-out; the harness scores it
 
-# Dev proxy: one task per type, disjoint from the held-out, verified to track it — the
-# 6-task equal-weight mean correlates with the held-out at Spearman 0.959 across 192
-# MTEB-leaderboard models. Fast, so you can iterate.
+# Dev proxy: one task per type, disjoint from the held-out; tracks it (Spearman 0.959).
 DEV_TASKS = ["NFCorpus", "STS16", "EmotionClassification",
              "WikiCitiesClustering", "SciDocsRR", "OpusparcusPC"]
 PER_TASK_TIMEOUT = 1200   # seconds; a task exceeding this is skipped, not fatal
@@ -95,8 +93,7 @@ def _collect(obj, out, cap):
 
 
 def _eval_texts(cap=200_000):
-    # The eval-text set is deterministic, so compute once and cache it — keeps
-    # check_contamination fast (no re-loading the whole benchmark on every call).
+    # Cache the eval-text set; recompute only when the cache is missing.
     if _EVAL_CACHE.exists():
         return set(json.loads(_EVAL_CACHE.read_text()))
     import mteb
