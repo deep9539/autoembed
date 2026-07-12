@@ -5,7 +5,8 @@ tasks, starting from the fixed base model in `task.py` (`BASE_MODEL`). Your subm
 must be a fine-tune of `BASE_MODEL`; save it to `final_model/` so it loads with
 `SentenceTransformer('final_model')`.
 
-You have complete freedom over method and data. A development suite is provided:
+You have complete freedom over method and data: research relevant approaches, experiment, and
+iterate on both the model and your approach. A development suite is provided:
 `evaluate('final_model')` in `task.py` scores your model on the dev tasks (`DEV_TASKS`). The
 hidden test is disjoint from the dev suite but the same kind of evaluation. Use the full
 budget: keep improving `final_model/` until your time is nearly up.
