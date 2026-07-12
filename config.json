@@ -1,0 +1,16 @@
+{
+  "base_model": "answerdotai/ModernBERT-base",
+  "dev_tasks": [
+    "NanoMSMARCORetrieval",
+    "NanoNQRetrieval",
+    "NanoFiQA2018Retrieval",
+    "NanoArguAnaRetrieval",
+    "NanoSCIDOCSRetrieval"
+  ],
+  "heldout_tasks": [
+    "NFCorpus",
+    "SciFact",
+    "TRECCOVID",
+    "Touche2020"
+  ]
+}

@@ -10,8 +10,12 @@ AGENT_CONFIG="${2:-}"
 HOURS="${3:-${HOURS:-3}}"
 MODE="${MODE:-native}"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-BASE_MODEL="${AUTOEMBED_BASE_MODEL:-intfloat/e5-base-unsupervised}"
+CONFIG="${AUTOEMBED_CONFIG:-$ROOT/config.json}"   # experiment: base, dev, held-out, references
+CFG="$(python3 -c "import json;c=json.load(open('$CONFIG'));print(c['base_model']+'|'+','.join(c['dev_tasks']))")"
+BASE_MODEL="${AUTOEMBED_BASE_MODEL:-${CFG%%|*}}"
 export AUTOEMBED_BASE_MODEL="$BASE_MODEL"   # agent, display, and meta.json all agree
+export AUTOEMBED_DEV_TASKS="${AUTOEMBED_DEV_TASKS:-${CFG##*|}}"
+export AUTOEMBED_CONFIG="$CONFIG"
 
 RUN_ID="$(date +%Y%m%d-%H%M%S)_${AGENT}"
 RESULTS="$ROOT/results/$RUN_ID"
@@ -19,7 +23,14 @@ mkdir -p "$RESULTS"
 
 WORK="$(mktemp -d)"
 cp "$ROOT"/{task.py,instructions.md,timer.sh,check_cuda.py,pyproject.toml,uv.lock} "$WORK"/
-[ -f "$ROOT/_eval_texts.json" ] && cp "$ROOT/_eval_texts.json" "$WORK"/   # fast contamination check
+# build the hashed held-out cache (harness-side; ships to the agent for contamination);
+# rebuilt whenever the experiment config is newer than the cache
+if [ ! -f "$ROOT/_eval_texts.json" ] || [ "$CONFIG" -nt "$ROOT/_eval_texts.json" ]; then
+  ( cd "$ROOT" && UV_PROJECT_ENVIRONMENT="$ROOT/.venv" \
+    uv run --no-sync python -c "import score; print('eval-cache hashes:', score.build_eval_cache())" ) || true
+fi
+[ -f "$ROOT/_eval_texts.json" ] && cp "$ROOT/_eval_texts.json" "$WORK"/ \
+    || echo "!! no eval cache — contamination check will be empty"
 cp "$ROOT/agents/$AGENT/solve.sh" "$WORK/solve.sh"
 mkdir -p "$WORK/final_model"
 
@@ -34,7 +45,7 @@ sandbox() {   # run "$1" in the sandbox; the venv comes from the environment
     ( cd "$WORK" && export UV_PROJECT_ENVIRONMENT="$ROOT/.venv" && bash -c "$1" )
   else
     docker run --rm --gpus all -v "$WORK":/work -w /work \
-      -e PROMPT -e AGENT_CONFIG -e DEADLINE -e AUTOEMBED_BASE_MODEL \
+      -e PROMPT -e AGENT_CONFIG -e DEADLINE -e AUTOEMBED_BASE_MODEL -e AUTOEMBED_DEV_TASKS \
       -e UV_PROJECT_ENVIRONMENT=/opt/autoembed/.venv \
       -e ANTHROPIC_API_KEY -e CLAUDE_CODE_OAUTH_TOKEN \
       -e OPENAI_API_KEY -e GEMINI_API_KEY \

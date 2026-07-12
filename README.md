@@ -15,11 +15,10 @@ The measurement is frozen; the method is free.
    (`task.py`, `instructions.md`, `timer.sh`), sets a deadline, and launches the
    agent via `agents/<agent>/solve.sh`.
 2. The agent reads `instructions.md`, writes its own training code (using the
-   helpers in `task.py`), self-evaluates on the **dev proxy** (`task.evaluate`),
+   helpers in `task.py`), self-evaluates on the **dev suite** (`evaluate`),
    paces itself with `bash timer.sh`, and saves its best model to `final_model/`.
 3. When the agent stops, `score.py` runs **outside** the workdir and scores
-   `final_model/` on the dev proxy, the **hidden held-out** set, and a
-   contamination audit.
+   `final_model/` on the **hidden held-out** set, plus a contamination audit.
 
 Integrity is structural, not honor-system: the scorer (`score.py`), which defines
 and runs the held-out set, never enters the agent's workdir, and the harness scores
@@ -29,14 +28,39 @@ from its own copy — so the agent can't see or tamper with the official metric.
 
 | | |
 |---|---|
+| `config.json` | the task: base model, dev tasks, held-out tasks |
 | `task.py` | fixed base model, dev eval, contamination check (the agent gets a copy) |
 | `instructions.md` | the prompt given to the agent |
 | `agents/<agent>/solve.sh` | per-agent launchers (claude · codex · gemini) |
 | `run_task.sh` | orchestrator: seed workdir → run agent → score |
 | `timer.sh` | remaining-budget query the agent calls |
-| `score.py` | harness scoring: dev + hidden held-out + contamination; defines the held-out tasks (harness-only) |
-| `reference.py` | reference-model anchors on the dev proxy |
+| `score.py` | harness scoring: hidden held-out + contamination (harness-only, never copied to the agent) |
+| `reference.py` | reference ladder on the held-out: base floor + model ids passed as args |
 | `Dockerfile` | container env; run with `docker run --gpus all` |
+
+## Define a task
+
+`config.json` is the task definition — everything that varies between experiments:
+
+```jsonc
+{
+  "base_model":    "answerdotai/ModernBERT-base",   // the frozen starting point
+  "dev_tasks":     ["NanoMSMARCORetrieval", "…"],   // given to the agent (MTEB task names)
+  "heldout_tasks": ["NFCorpus", "…"]                // hidden test (harness-only)
+}
+```
+
+Point `AUTOEMBED_CONFIG` at another file to switch tasks (e.g. a domain variant).
+Keep `dev_tasks` and `heldout_tasks` on disjoint datasets — `score.py` warns on
+overlap (a Nano dev task and its full version count as the same dataset). The
+contamination cache (`_eval_texts.json`) is rebuilt automatically whenever the
+config is newer than the cache.
+
+To place a result, score reference models on the same held-out:
+
+```bash
+uv run python reference.py nomic-ai/modernbert-embed-base intfloat/e5-base-v2
+```
 
 ## Run
 

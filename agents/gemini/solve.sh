@@ -12,6 +12,6 @@ while :; do
     mins="$(printf '%s' "$left" | grep -oE '[0-9]+' | head -1)"
     { [ -z "$mins" ] || [ "$mins" -lt 5 ]; } && break
     sleep 60   # let background work progress
-    msg="$(printf 'You still have %s. Keep improving final_model/ (your work is in this directory): run evaluate_dev to see per-type scores, and continue training until the model is as good as you can make it.' "$left")"
+    msg="$(printf 'You still have %s. Keep improving final_model/ (your work is in this directory): run evaluate() on the dev suite, and continue training until the model is as good as you can make it.' "$left")"
     gemini --yolo --model "$MODEL" --output-format stream-json -p "$msg"
 done
