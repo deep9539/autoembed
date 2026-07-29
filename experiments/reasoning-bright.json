@@ -1,0 +1,59 @@
+{
+  "protocol_version": "reasoning-bright-inductive",
+  "protocol_type": "benchmark-target",
+  "description": "Inductive BRIGHT reasoning target: all domains are visible, development and hidden evaluation use complementary query halves, and no evaluation query, qrel, or corpus document may be training material.",
+  "expected_task_count": 12,
+  "base_model": "Qwen/Qwen3-Embedding-0.6B",
+  "base_revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+  "base_loader": "sentence-transformer",
+  "tasks": [
+    "BrightBiologyRetrieval",
+    "BrightEarthScienceRetrieval",
+    "BrightEconomicsRetrieval",
+    "BrightPsychologyRetrieval",
+    "BrightRoboticsRetrieval",
+    "BrightStackoverflowRetrieval",
+    "BrightSustainableLivingRetrieval",
+    "BrightPonyRetrieval",
+    "BrightLeetcodeRetrieval",
+    "BrightAopsRetrieval",
+    "BrightTheoremQAQuestionsRetrieval",
+    "BrightTheoremQATheoremsRetrieval"
+  ],
+  "example_split": {
+    "dev_fraction": 0.5,
+    "seed": "autoembed-bright-target-v1"
+  },
+  "allow_target_corpus_training": false,
+  "per_task_timeout": 3600,
+  "require_complete_score": true,
+  "require_contamination_manifest": true,
+  "contamination_policy": "open-data",
+  "query_overlap_policy": "report",
+  "require_source_provenance": true,
+  "max_query_overlap_hits": 1000,
+  "max_query_overlap_fraction": 0.1,
+  "max_incidental_overlap_hits": 10000,
+  "max_incidental_overlap_fraction": 0.001,
+  "require_filesystem_isolation": true,
+  "references": [
+    {
+      "name": "nomic-ai/modernbert-embed-base",
+      "revision": "5960f1566fb7cb1adf1eb6e816639cf4646d9b12",
+      "loader": "mteb",
+      "role": "small-encoder-general-anchor"
+    },
+    {
+      "name": "Alibaba-NLP/gte-modernbert-base",
+      "revision": "e7f32e3c00f91d699e8c43b53106206bcc72bb22",
+      "loader": "sentence-transformer",
+      "role": "small-encoder-general-anchor"
+    },
+    {
+      "name": "intfloat/e5-base-v2",
+      "revision": "1c644c92ad3ba1efdad3f1451a637716616a20e8",
+      "loader": "mteb",
+      "role": "external-general-anchor"
+    }
+  ]
+}

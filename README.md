@@ -1,78 +1,141 @@
 # autoembed
 
-Can an agent train a good embedding model on its own? `autoembed` is a benchmark
-for *agentic* embedding-model training: a CLI agent (Claude Code, Codex, Gemini…)
-is given a fixed base model, a wall-clock budget on one GPU, and a dev eval to
-query — and must produce the best embedding model it can. The harness then scores
-the agent's `final_model/` on a frozen eval, including a held-out set the agent
-never sees.
+`autoembed` measures how well a coding agent can train an embedding model within a
+fixed time and GPU budget. The agent receives a pinned base checkpoint, a visible
+development evaluation, and an isolated work directory. The harness then scores its
+`final_model/` on the complementary hidden split and audits the declared training data.
 
-The measurement is frozen; the method is free.
+## Requirements
 
-## How it works
+- Linux and one NVIDIA GPU
+- [`uv`](https://docs.astral.sh/uv/)
+- one supported agent CLI: Claude Code, Codex, or Antigravity
+- Slurm + Enroot for cluster runs, or Docker for local isolated runs
 
-1. `run_task.sh <agent>` seeds a fresh workdir with the **agent-facing files only**
-   (`task.py`, `instructions.md`, `timer.sh`), sets a deadline, and launches the
-   agent via `agents/<agent>/solve.sh`.
-2. The agent reads `instructions.md`, writes its own training code (using the
-   helpers in `task.py`), self-evaluates on the **dev suite** (`evaluate`),
-   paces itself with `bash timer.sh`, and saves its best model to `final_model/`.
-3. When the agent stops, `score.py` runs **outside** the workdir and scores
-   `final_model/` on the **hidden held-out** set, plus a contamination audit.
-
-Integrity is structural, not honor-system: the scorer (`score.py`), which defines
-and runs the held-out set, never enters the agent's workdir, and the harness scores
-from its own copy — so the agent can't see or tamper with the official metric.
-
-## Files
-
-| | |
-|---|---|
-| `config.json` | the task: base model, dev tasks, held-out tasks |
-| `task.py` | fixed base model, dev eval, contamination check (the agent gets a copy) |
-| `instructions.md` | the prompt given to the agent |
-| `agents/<agent>/solve.sh` | per-agent launchers (claude · codex · gemini) |
-| `run_task.sh` | orchestrator: seed workdir → run agent → score |
-| `timer.sh` | remaining-budget query the agent calls |
-| `score.py` | harness scoring: hidden held-out + contamination (harness-only, never copied to the agent) |
-| `reference.py` | reference ladder on the held-out: base floor + model ids passed as args |
-| `Dockerfile` | container env; run with `docker run --gpus all` |
-
-## Define a task
-
-`config.json` is the task definition — everything that varies between experiments:
-
-```jsonc
-{
-  "base_model":    "answerdotai/ModernBERT-base",   // the frozen starting point
-  "dev_tasks":     ["NanoMSMARCORetrieval", "…"],   // given to the agent (MTEB task names)
-  "heldout_tasks": ["NFCorpus", "…"]                // hidden test (harness-only)
-}
-```
-
-Point `AUTOEMBED_CONFIG` at another file to switch tasks (e.g. a domain variant).
-Keep `dev_tasks` and `heldout_tasks` on disjoint datasets — `score.py` warns on
-overlap (a Nano dev task and its full version count as the same dataset). The
-contamination cache (`_eval_texts.json`) is rebuilt automatically whenever the
-config is newer than the cache.
-
-To place a result, score reference models on the same held-out:
+Run commands from a source checkout:
 
 ```bash
-uv run python reference.py nomic-ai/modernbert-embed-base intfloat/e5-base-v2
+uv sync --group dev
+uv run autoembed list
+uv run pytest tests/
 ```
 
-## Run
+`pyproject.toml` currently selects CUDA 12.8 PyTorch wheels. Adjust that index if the
+host driver requires another build.
 
-Needs a local NVIDIA GPU, the agent CLI installed + authenticated (API key or
-subscription), and `uv`.
+## Configs and reference scores
+
+The config is the complete experiment protocol: pinned base and reference revisions,
+development/hidden split, contamination policy, timeout, and isolation requirements.
+Canonical configs are under `configs/general/` and `configs/specialization/`.
 
 ```bash
-uv sync
-./run_task.sh claude              # native: run Claude Code for the default budget
-HOURS=10 ./run_task.sh codex      # 10-hour budget with Codex
-MODE=docker ./run_task.sh gemini  # isolated container run (needs the agent CLI in the image)
+uv run autoembed list
+uv run autoembed reference --config finance
+uv run autoembed reference --config finance Alibaba-NLP/gte-modernbert-base
 ```
 
-GPU note: `pyproject.toml` pins torch to a CUDA 12.8 wheel index; adjust it to
-your driver (see the comment there).
+`reference` and `score` use Slurm by default. Add `--local --gpu 0` to run on a GPU
+attached to the current machine. Model IDs passed to `reference` must already have a
+pinned revision and loader in the selected config.
+
+The two general MTEB-Nano configs also need the frozen JSON bundle in `runs/nano/`, or
+`AUTOEMBED_NANO_DIR` pointing to it. The large data files are not stored in Git.
+`agent_task/nano_assets.json` pins every filename and checksum; the launcher stops
+before starting an agent if the bundle is missing or changed.
+
+## Authentication and images
+
+Build one immutable Enroot image per agent on the cluster:
+
+```bash
+srun --partition=guest --time=00:30:00 scripts/build_enroot.sh claude
+srun --partition=guest --time=00:30:00 scripts/build_enroot.sh codex
+srun --partition=guest --time=00:30:00 scripts/build_enroot.sh antigravity
+```
+
+Claude accepts `CLAUDE_CODE_OAUTH_TOKEN` for a subscription or `ANTHROPIC_API_KEY`.
+Codex accepts `OPENAI_API_KEY`, or an imported subscription credential. Antigravity
+uses an imported portable subscription token:
+
+```bash
+scripts/agent_auth.sh codex /secure/path/auth.json
+scripts/agent_auth.sh antigravity /secure/path/antigravity-oauth-token
+```
+
+Credentials are copied into the ignored `.agent-auth/` directory, mounted through a
+private per-run staging directory, and never copied into results.
+
+## Run and score
+
+```bash
+# End-to-end preflight. This does not start the agent or hidden scorer.
+MODE=enroot AUTOEMBED_PREFLIGHT_ONLY=1 \
+  uv run autoembed run --config finance --agent claude --hours 10
+
+# Cluster run: 10 agent hours plus 2 hours for setup and hidden scoring.
+uv run autoembed run --config finance --agent claude --hours 10 --time 12:00:00
+uv run autoembed run --config mteb-nano-create --agent codex --hours 10 --time 12:00:00
+
+# Local Docker run on physical GPU 0.
+uv run autoembed run --config medical --agent antigravity \
+  --local --gpu 0 --isolation docker --hours 10
+
+# Preview a pinned base override without launching.
+uv run autoembed run --config finance --agent codex \
+  --base <hf-id> --base-revision <40-character-commit> --dry-run
+
+# Rescore a saved model or recovery snapshot.
+uv run autoembed score results/<run>/recovery/<timestamp> --config finance
+```
+
+The shell entry points remain usable directly. For example:
+
+```bash
+MODE=enroot AUTOEMBED_CONFIG=configs/specialization/finance.json HOURS=10 \
+  scripts/gpu.sh scripts/run_task.sh claude claude-opus-5 10
+```
+
+Canonical configs require filesystem isolation. Native mode is available for trusted
+local debugging, but it is cooperative and not a security boundary. Custom
+`mteb_model.py` submissions are executable code and therefore score only through the
+isolated Docker encoder worker; standard offline SentenceTransformer directories work
+with Enroot or Docker.
+
+## Evaluation and run records
+
+Canonical protocols use a deterministic 50/50 example split: agents see one half and
+the harness scores the exact complement. `allow_target_corpus_training` is `false`, so
+evaluation queries, labels, and corpora are not training data. This is the appropriate
+inductive setup for the current claims; a separate transductive protocol would set it
+to `true` explicitly.
+
+Every submitted model must include an exhaustive `training_manifest.json` declaring its
+sources. Three things flag a run: a missing, non-exhaustive, or unsourced manifest; a
+hidden query and one of its relevant documents in the same training row; and wholesale
+ingestion of evaluation text. A flagged run is scored as its own base model rather than
+dropped, so it keeps its row in the results table and the flag costs the claimed gain.
+Text collisions short of those thresholds are reported on the unchanged test set instead
+of silently removing examples — the evaluation tasks are built from the same public
+datasets embedders train on, so overlap is expected. This audit detects exact reuse and
+records provenance; it does not prove that an adversarial participant could not
+reconstruct the split.
+
+Each `results/<run>/` directory contains the prompt, timestamped trace, workspace
+snapshot, recovery checkpoints, final model, score log, `scores.json`, and `meta.json`.
+Metadata records the config/scorer hashes, Git state, agent version, authentication
+mode, GPU/container provenance, completion state, and available usage/cost fields.
+Unavailable cost is `null`, not zero; subscription runs are not presented as per-run
+billed API cost.
+
+## Project layout
+
+- `autoembed/`: CLI, hidden scoring, reference scoring, encoder worker
+- `configs/`: canonical versioned experiment protocols
+- `agent_task/`: files copied into the agent work directory
+- `agents/`: Claude, Codex, and Antigravity launchers
+- `scripts/`: run, GPU, image, authentication, trace, and metadata tools
+- `tests/`: scoring, contamination, submission, and accounting tests
+
+See `configs/README.md` for the rationale behind the canonical task sets and data
+policies.

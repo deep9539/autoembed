@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "benchmark": "mteb-nano",
+  "asset_set_sha256": "b1034a841eab373033794eca94da6dcd6391afa66f54da9438a35b56ab0776e0",
+  "files": [
+    {
+      "name": "CQADupstackGamingRetrieval.json",
+      "sha256": "7e7e4b1bec40cc23acefa9b3ea6caea6a572c44b8091b25d51e4322734db2129",
+      "queries": 200,
+      "corpus": 10076,
+      "qrels": 200
+    },
+    {
+      "name": "CQADupstackUnixRetrieval.json",
+      "sha256": "a627d41c0b93168b4e3b343bd298e817742651e2f16a86cf4e437c3a9535ab51",
+      "queries": 200,
+      "corpus": 10369,
+      "qrels": 200
+    },
+    {
+      "name": "ClimateFEVERHardNegatives.json",
+      "sha256": "8489aa574b9052d9f4d78604fb8235d511fb54b7112524d9244a165a12ddad51",
+      "queries": 200,
+      "corpus": 10170,
+      "qrels": 200
+    },
+    {
+      "name": "FEVERHardNegatives.json",
+      "sha256": "7d94b2794dd7e0d82152d9a70d0e2ffa38316a3809bd3cbe34642cc05f28bcde",
+      "queries": 200,
+      "corpus": 10363,
+      "qrels": 200
+    },
+    {
+      "name": "FiQA2018.json",
+      "sha256": "62f80827e3ca4c5d16c110fe6f26507f363866aafd070e6e84c002f43c3ae841",
+      "queries": 200,
+      "corpus": 10161,
+      "qrels": 200
+    },
+    {
+      "name": "HotpotQAHardNegatives.json",
+      "sha256": "ba8fa3760859e79c408d870b547ef64a6dcaa17262b0d42ca41eecc1be8f7565",
+      "queries": 200,
+      "corpus": 10209,
+      "qrels": 200
+    },
+    {
+      "name": "SCIDOCS.json",
+      "sha256": "91bfe3bdfbb7558ce706c7d89b3a1f53932dd7c66dfcb3c73d0c0e7bc38f61a7",
+      "queries": 200,
+      "corpus": 10218,
+      "qrels": 200
+    },
+    {
+      "name": "TRECCOVID.json",
+      "sha256": "bc413e44d48e8d70246ed145bc8786473da86c7ca553f217d9e57748a6a828fb",
+      "queries": 50,
+      "corpus": 26099,
+      "qrels": 50
+    },
+    {
+      "name": "Touche2020Retrieval.v3.json",
+      "sha256": "19ce2d07215659fccca7f7f72c733ab46b37b20e1bef1c553304684e9ccdcc83",
+      "queries": 49,
+      "corpus": 10726,
+      "qrels": 49
+    }
+  ]
+}
