@@ -384,6 +384,31 @@ def usage_from_sidecar(path, agent):
     }
 
 
+def served_models_from_sessions(directory):
+    """Return the models the CLI recorded actually serving each message.
+
+    A CLI may substitute a model it does not recognise, so the requested id is
+    not evidence. Claude carries it on message.model, Gemini on the record.
+    """
+    served = set()
+    for path in sorted(Path(directory).glob("*.jsonl")) if Path(directory).is_dir() else ():
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for raw in handle:
+                try:
+                    record = json.loads(raw)
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(record, dict):
+                    continue
+                name = record.get("model")
+                message = record.get("message")
+                if not isinstance(name, str) and isinstance(message, dict):
+                    name = message.get("model")
+                if isinstance(name, str) and name:
+                    served.add(name)
+    return sorted(served)
+
+
 def effort_from_sessions(directory):
     """Return the reasoning effort the CLI recorded, or None if unavailable."""
     efforts = set()
@@ -489,7 +514,10 @@ def build_meta(trace, score_path=None):
         "default" if env("AGENT") == "claude" else (env("AGENT_REASONING") or None)
     )
     reported_models = trace_facts["reported_models"]
-    model_verified = model in reported_models if reported_models else None
+    served_models = served_models_from_sessions(Path(trace).with_name("agent_sessions"))
+    # The trace echoes the requested id (or an alias); only the CLI's own session
+    # record shows what served the request.
+    model_verified = (model in served_models) if served_models else None
     trace_facts["terminal_event_complete"] = terminal_complete
 
     return {
@@ -499,6 +527,7 @@ def build_meta(trace, score_path=None):
         "model_identity": {
             "requested": model,
             "reported": reported_models,
+            "served": served_models,
             "verified": model_verified,
         },
         "trace": trace_facts,
