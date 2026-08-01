@@ -1,21 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "autoembed"
 version = "0.1.0"
-description = "Agentic embedding-model training benchmark, scored on MTEB"
+description = "A framework for agentic embedding-model training"
 requires-python = ">=3.10"
 dependencies = [
     "sentence-transformers>=5.0",
     "mteb>=1.12",
+    "peft>=0.17",
     "torch>=2.2,<2.10",
     "datasets>=2.19",
     "accelerate>=0.30",
 ]
 
+[project.scripts]
+autoembed = "autoembed.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+# The command is intended to run from a source checkout: orchestration resources in
+# configs/, scripts/, agents/, and agent_task/ are resolved from the repository root.
+[tool.hatch.build.targets.wheel]
+packages = ["autoembed"]
+
 [tool.uv]
-# torch is pinned to a CUDA wheel index so the GPU is actually used (the default
-# index can resolve a wheel your driver rejects -> silent CPU fallback). The pin
-# below targets CUDA 12.8; change the index URL to match your driver, or drop
-# the [tool.uv.sources]/[[tool.uv.index]] blocks to use the default wheel.
+# torch pinned to a CUDA 12.8 wheel index. Change the URL to match your driver,
+# or drop the [tool.uv.sources]/[[tool.uv.index]] blocks for the default wheel.
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }

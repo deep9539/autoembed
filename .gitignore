@@ -3,6 +3,8 @@ out/
 final_model/
 results/
 runs/
+artifacts/
+.agent-auth/
 
 # python
 __pycache__/
@@ -11,3 +13,8 @@ __pycache__/
 
 # caches
 .cache/
+_eval_texts.json
+_eval_texts.meta.json
+runs/references/.superseded/
+runs/mteb/
+archive/

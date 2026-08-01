@@ -1,0 +1,57 @@
+{
+  "protocol_version": "specialization-medical",
+  "protocol_type": "benchmark-target",
+  "description": "Medical retrieval specialization of a strong general embedder: six English medical retrieval tasks spanning lexical and reasoning-driven search, scored on complementary hidden query halves. Evaluation text is forbidden training data.",
+  "expected_task_count": 6,
+  "base_model": "Alibaba-NLP/gte-modernbert-base",
+  "base_revision": "e7f32e3c00f91d699e8c43b53106206bcc72bb22",
+  "base_loader": "sentence-transformer",
+  "tasks": [
+    "NFCorpus",
+    "ChatDoctorRetrieval",
+    "SciFact",
+    "MedicalQARetrieval",
+    "R2MEDMedQADiagRetrieval",
+    "R2MEDPMCTreatmentRetrieval"
+  ],
+  "example_split": {
+    "dev_fraction": 0.5,
+    "seed": "autoembed-medical-target-v1"
+  },
+  "allow_target_corpus_training": false,
+  "per_task_timeout": 3600,
+  "require_complete_score": true,
+  "require_contamination_manifest": true,
+  "contamination_policy": "open-data",
+  "query_overlap_policy": "report",
+  "require_source_provenance": true,
+  "max_incidental_overlap_hits": 10000,
+  "max_incidental_overlap_fraction": 0.001,
+  "require_filesystem_isolation": true,
+  "references": [
+    {
+      "name": "nomic-ai/modernbert-embed-base",
+      "revision": "5960f1566fb7cb1adf1eb6e816639cf4646d9b12",
+      "loader": "mteb",
+      "role": "same-backbone-general-embedder"
+    },
+    {
+      "name": "intfloat/e5-base-v2",
+      "revision": "1c644c92ad3ba1efdad3f1451a637716616a20e8",
+      "loader": "mteb",
+      "role": "external-general-anchor"
+    },
+    {
+      "name": "abhinand/MedEmbed-large-v0.1",
+      "revision": "963121bfb9c625475f65b08fb54990ce9c4e7a1a",
+      "loader": "sentence-transformer",
+      "role": "published-domain-embedder"
+    },
+    {
+      "name": "Qwen/Qwen3-Embedding-4B",
+      "revision": "5cf2132abc99cad020ac570b19d031efec650f2b",
+      "loader": "sentence-transformer",
+      "role": "large-general-embedder-ceiling"
+    }
+  ]
+}

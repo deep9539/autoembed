@@ -1,0 +1,57 @@
+{
+  "protocol_version": "general-mteb-nano-create",
+  "protocol_type": "benchmark-target",
+  "description": "General embedding creation from a pretrained language encoder on MTEB-Nano: the agent and hidden scorer use complementary evaluation examples from the same 40 tasks, while all evaluation text remains forbidden training data.",
+  "expected_task_count": 40,
+  "base_model": "answerdotai/ModernBERT-base",
+  "base_revision": "8949b909ec900327062f0ebf497f51aef5e6f0c8",
+  "dev_benchmark": "mteb-nano",
+  "heldout_benchmark": "mteb-nano",
+  "benchmark_revision": "b1034a841eab373033794eca94da6dcd6391afa66f54da9438a35b56ab0776e0",
+  "example_split": {
+    "dev_fraction": 0.5,
+    "seed": "autoembed-general-mteb-nano-v1"
+  },
+  "allow_target_corpus_training": false,
+  "per_task_timeout": 3600,
+  "require_complete_score": true,
+  "require_contamination_manifest": true,
+  "contamination_policy": "open-data",
+  "query_overlap_policy": "report",
+  "require_source_provenance": true,
+  "max_incidental_overlap_hits": 10000,
+  "max_incidental_overlap_fraction": 0.001,
+  "require_filesystem_isolation": true,
+  "references": [
+    {
+      "name": "nomic-ai/modernbert-embed-base",
+      "revision": "5960f1566fb7cb1adf1eb6e816639cf4646d9b12",
+      "loader": "mteb",
+      "role": "same-backbone-general-embedder"
+    },
+    {
+      "name": "Alibaba-NLP/gte-modernbert-base",
+      "revision": "e7f32e3c00f91d699e8c43b53106206bcc72bb22",
+      "loader": "sentence-transformer",
+      "role": "same-backbone-general-embedder"
+    },
+    {
+      "name": "intfloat/e5-base-v2",
+      "revision": "1c644c92ad3ba1efdad3f1451a637716616a20e8",
+      "loader": "mteb",
+      "role": "external-general-anchor"
+    },
+    {
+      "name": "Qwen/Qwen3-Embedding-4B",
+      "revision": "5cf2132abc99cad020ac570b19d031efec650f2b",
+      "loader": "sentence-transformer",
+      "role": "large-general-embedder-ceiling"
+    },
+    {
+      "name": "Qwen/Qwen3-Embedding-0.6B",
+      "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+      "loader": "sentence-transformer",
+      "role": "large-general-embedder-ceiling-0.6b"
+    }
+  ]
+}
