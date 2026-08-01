@@ -154,15 +154,16 @@ The two `configs/general/` configs evaluate a 40-task MTEB subset. Nine heavy re
 tasks are replaced by frozen subsamples of 200 queries against roughly 10,000 documents
 each, about 120 MB that is not stored in Git.
 
-**These assets are not yet published, so the two `configs/general/` protocols cannot be
-run outside our cluster.** The four `configs/specialization/` protocols are unaffected and
-need nothing beyond the Hub. Subsampling is frozen rather than regenerated, so an
-equivalent bundle rebuilt from the same tasks would not reproduce these protocols; the
-published files are the only way to match them.
+**Pending release.** MTEB-nano is being prepared for release as an MTEB benchmark, in
+line with the other benchmarks there. Until then the two `configs/general/` protocols
+cannot be run elsewhere; the four `configs/specialization/` protocols need nothing
+beyond the Hub and are unaffected. Subsampling is frozen rather than regenerated, so a
+bundle rebuilt from the same tasks would not reproduce these protocols — the released
+files are what makes them reproducible.
 
-Once you have the bundle, place it in `runs/nano/` or point `AUTOEMBED_NANO_DIR` at it.
-`agent_task/nano_assets.json` pins every filename and checksum, and the launcher stops
-before starting an agent if anything is missing or altered.
+Once the bundle is available, place it in `runs/nano/` or point `AUTOEMBED_NANO_DIR` at
+it. `agent_task/nano_assets.json` pins every filename and checksum, and the launcher
+stops before starting an agent if anything is missing or altered.
 
 ## Configs
 
