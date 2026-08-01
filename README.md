@@ -109,6 +109,31 @@ uv run autoembed run --config specialization/medical --agent claude \
   --local --gpu 0 --isolation docker --hours 10
 ```
 
+## Choosing the agent and its model
+
+`--agent` selects the CLI; `--model` selects the model that CLI drives. Both are
+recorded in `meta.json`, so a result is always attributable to one exact pairing.
+
+| `--agent` | CLI | default `--model` |
+|---|---|---|
+| `claude` | Claude Code | `claude-opus-5` |
+| `codex` | Codex | `gpt-5.6-sol` |
+| `gemini` | Gemini CLI | `gemini-3.6-flash` |
+
+```bash
+# the same setting, run by two models from one family
+uv run autoembed run --config specialization/legal --agent claude --model claude-opus-5   --hours 10
+uv run autoembed run --config specialization/legal --agent claude --model claude-sonnet-5 --hours 10
+
+# and by another family
+uv run autoembed run --config specialization/legal --agent gemini --model gemini-3.6-flash --hours 10
+```
+
+Pass any model id the CLI accepts. `meta.json` records both the requested id and the
+one the CLI reports serving, because a CLI may substitute a model it does not
+recognise; compare `model_identity.requested` with `model_identity.served` before
+reporting a result.
+
 Other useful forms:
 
 ```bash
@@ -125,11 +150,20 @@ uv run autoembed run --config specialization/finance --agent codex \
 The four `configs/specialization/` configs pull everything they need from the Hugging Face
 Hub on first use.
 
-The two `configs/general/` configs evaluate a 40-task MTEB subset with frozen subsamples of
-nine heavy retrieval tasks, about 120 MB that is not stored in Git. Place the bundle in
-`runs/nano/`, or point `AUTOEMBED_NANO_DIR` at it. `agent_task/nano_assets.json` pins every
-filename and checksum, and the launcher stops before starting an agent if anything is
-missing or altered.
+The two `configs/general/` configs evaluate a 40-task MTEB subset. Nine heavy retrieval
+tasks are replaced by frozen subsamples of 200 queries against roughly 10,000 documents
+each, about 120 MB that is not stored in Git.
+
+**Pending release.** MTEB-nano is being prepared for release as an MTEB benchmark, in
+line with the other benchmarks there. Until then the two `configs/general/` protocols
+cannot be run elsewhere; the four `configs/specialization/` protocols need nothing
+beyond the Hub and are unaffected. Subsampling is frozen rather than regenerated, so a
+bundle rebuilt from the same tasks would not reproduce these protocols — the released
+files are what makes them reproducible.
+
+Once the bundle is available, place it in `runs/nano/` or point `AUTOEMBED_NANO_DIR` at
+it. `agent_task/nano_assets.json` pins every filename and checksum, and the launcher
+stops before starting an agent if anything is missing or altered.
 
 ## Configs
 
