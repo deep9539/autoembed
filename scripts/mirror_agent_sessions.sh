@@ -6,7 +6,7 @@
 # copy on shared storage until the last run finishes. Stopgap: once no job is
 # executing run_task.sh, the copy step moves into the harness itself.
 set -uo pipefail
-ROOT=/data/home/niklas/adnan/autoembed
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGE="$ROOT/artifacts/session-rescue"
 INTERVAL="${INTERVAL:-900}"
 
