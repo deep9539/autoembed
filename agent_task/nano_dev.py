@@ -141,11 +141,3 @@ def dev_tasks(expected_revision=None):
         else:
             out.append(copy.deepcopy(registered_task))
     return out
-
-
-def dev_task_names():
-    return [
-        task.metadata.name
-        for task in mteb.get_benchmark("MTEB(eng, v2)").tasks
-        if task.metadata.name != "MindSmallReranking"
-    ]
