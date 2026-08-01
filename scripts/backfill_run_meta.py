@@ -64,13 +64,13 @@ def _partial_provenance(run_dir, trace_path):
     except (FileNotFoundError, json.JSONDecodeError):
         config = {}
     agent = next(
-        (name for name in ("claude", "codex", "antigravity")
+        (name for name in ("claude", "codex", "gemini")
          if name in run_dir.name.lower()),
         run_dir.name.rsplit("_", 1)[-1],
     )
     defaults = {
         "claude": "claude-opus-5", "codex": "gpt-5.6-sol",
-        "antigravity": "gemini-3.6-flash",
+        "gemini": "gemini-3.6-flash",
     }
     final_model = run_dir / "final_model"
     return {
