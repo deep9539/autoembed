@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run an agent on the task, then score final_model. An NVIDIA GPU is required.
-#   scripts/run_task.sh <agent> [agent-model] [hours]    agents: claude | codex | antigravity
+#   scripts/run_task.sh <agent> [agent-model] [hours]    agents: claude | codex | gemini
 # MODE=native uses the repo venv; MODE=enroot/docker uses an immutable image.
 # GPU_ID=<physical index> selects a GPU outside Slurm. REQUIRE_GPU_ENFORCEMENT=1
 # refuses native runs unless they are inside Slurm; container device isolation
@@ -19,15 +19,15 @@ fi
 # ---- Configuration and provenance ----
 AGENT="${1:?usage: scripts/run_task.sh <agent> [agent-model] [hours]}"
 case "$AGENT" in
-  claude|codex|antigravity) ;;
-  *) echo "unknown agent: $AGENT (expected claude, codex, or antigravity)" >&2; exit 2 ;;
+  claude|codex|gemini) ;;
+  *) echo "unknown agent: $AGENT (expected claude, codex, or gemini)" >&2; exit 2 ;;
 esac
 AGENT_CONFIG="${2:-}"
 if [ -z "$AGENT_CONFIG" ]; then
   case "$AGENT" in
     claude) AGENT_CONFIG="claude-opus-5" ;;
     codex) AGENT_CONFIG="gpt-5.6-sol" ;;
-    antigravity) AGENT_CONFIG="gemini-3.6-flash" ;;
+    gemini) AGENT_CONFIG="gemini-3.6-flash" ;;
   esac
 fi
 HOURS="${3:-${HOURS:-3}}"
@@ -42,6 +42,9 @@ ENROOT_CONTAINER="${ENROOT_CONTAINER:-autoembed-$AGENT}"
 AUTH_ROOT="${AUTOEMBED_AUTH_DIR:-$ROOT/.agent-auth}"
 AGENT_AUTH_DIR="$AUTH_ROOT/$AGENT"
 AGENT_AUTH_MODE="none"
+AGENT_PROTOCOL="official-cli-reprompt-v1"
+REPROMPT_CUTOFF_MINUTES=30
+AGENT_WRAPPER_SHA256="$(sha256sum "$ROOT/agents/$AGENT/solve.sh" | cut -d" " -f1)"
 AUTH_STAGE=""
 CONTAINER_IMAGE_SHA256=""
 CONFIG="${AUTOEMBED_CONFIG:-$ROOT/configs/specialization/legal.json}"   # experiment spec: base model and evaluation protocol
@@ -139,15 +142,11 @@ if [ "$MODE" = enroot ] || [ "$MODE" = docker ]; then
         echo "!! Codex is not authenticated; run scripts/agent_auth.sh codex" >&2
         exit 1
       fi ;;
-    antigravity)
-      if [ -f "$AGENT_AUTH_DIR/home/.gemini/antigravity-cli/antigravity-oauth-token" ]; then
-        python3 -c 'import json,sys; value=json.load(open(sys.argv[1])); assert isinstance(value,dict)' "$AGENT_AUTH_DIR/home/.gemini/antigravity-cli/antigravity-oauth-token" 2>/dev/null || {
-          echo "!! Antigravity credential is not a valid JSON object; import a portable token file" >&2
-          exit 1
-        }
-        AGENT_AUTH_MODE=subscription
+    gemini)
+      if [ -n "${GEMINI_API_KEY:-}" ] || [ -n "${GOOGLE_API_KEY:-}" ]; then
+        AGENT_AUTH_MODE=api-key
       else
-        echo "!! Antigravity is not authenticated; run scripts/agent_auth.sh antigravity <token-file>" >&2
+        echo "!! isolated Gemini runs require GEMINI_API_KEY or GOOGLE_API_KEY" >&2
         exit 1
       fi ;;
   esac
@@ -166,27 +165,16 @@ cleanup_auth_stage() {
   fi
 }
 
-if [ "$AGENT_AUTH_MODE" = subscription ] && { [ "$AGENT" = codex ] || [ "$AGENT" = antigravity ]; }; then
+if [ "$AGENT_AUTH_MODE" = subscription ] && [ "$AGENT" = codex ]; then
   chmod 700 "$AUTH_ROOT" "$AGENT_AUTH_DIR"
   AUTH_STAGE="$(mktemp -d "$AUTH_ROOT/.run-${AGENT}.XXXXXX")"
   chmod 700 "$AUTH_STAGE"
   trap cleanup_auth_stage EXIT
-  if [ "$AGENT" = codex ]; then
-    install -m 600 "$AGENT_AUTH_DIR/auth.json" "$AUTH_STAGE/auth.json"
-  else
-    mkdir -p "$AUTH_STAGE/home/.gemini/antigravity-cli"
-    chmod 700 "$AUTH_STAGE/home" "$AUTH_STAGE/home/.gemini" "$AUTH_STAGE/home/.gemini/antigravity-cli"
-    install -m 600 "$AGENT_AUTH_DIR/home/.gemini/antigravity-cli/antigravity-oauth-token" "$AUTH_STAGE/home/.gemini/antigravity-cli/antigravity-oauth-token"
-  fi
+  install -m 600 "$AGENT_AUTH_DIR/auth.json" "$AUTH_STAGE/auth.json"
   DOCKER_AUTH_MOUNT=(-v "$AUTH_STAGE:/agent-auth")
   ENROOT_AUTH_MOUNT=(-m "$AUTH_STAGE:/agent-auth")
-  if [ "$AGENT" = codex ]; then
-    DOCKER_AUTH_ENV=(-e CODEX_HOME=/agent-auth)
-    ENROOT_AUTH_ENV=(-e CODEX_HOME=/agent-auth)
-  else
-    DOCKER_AUTH_ENV=(-e HOME=/agent-auth/home)
-    ENROOT_AUTH_ENV=(-e HOME=/agent-auth/home)
-  fi
+  DOCKER_AUTH_ENV=(-e CODEX_HOME=/agent-auth)
+  ENROOT_AUTH_ENV=(-e CODEX_HOME=/agent-auth)
 fi
 
 # ---- Work directory and hidden-data preflight ----
@@ -310,6 +298,7 @@ write_run_meta() {
   final_files="$(ls -1A "$WORK/final_model" 2>/dev/null | wc -l | tr -d ' ')"
   RUN_ID="$RUN_ID" RUN_KIND=experiment AGENT="$AGENT" AGENT_CONFIG="$AGENT_CONFIG" BASE_MODEL="$BASE_MODEL" BASE_REVISION="$BASE_REVISION" PROTOCOL_VERSION="$PROTOCOL_VERSION" CONFIG_ID="$CONFIG_ID" CONFIG_SHA256="$CONFIG_SHA256" \
   AGENT_REASONING="$AUTOEMBED_AGENT_REASONING" AGENT_AUTH_MODE="$AGENT_AUTH_MODE" AGENT_VERSION="$AGENT_VERSION" \
+  AGENT_PROTOCOL="$AGENT_PROTOCOL" REPROMPT_CUTOFF_MINUTES="$REPROMPT_CUTOFF_MINUTES" AGENT_WRAPPER_SHA256="$AGENT_WRAPPER_SHA256" \
   HOURS="$HOURS" MODE="$MODE" DURATION="$((now - START))" RC="$run_rc" BUDGET_HIT="$budget_hit" \
   NODE="$node" GPU_NAME="$gpu_name" GPU_BOUNDARY="$GPU_BOUNDARY" GPU_SELECTOR="$SELECTED_GPU" FINAL_FILES="$final_files" SCORE_RC="$score_rc" \
   CONTAINER_IMAGE_SHA256="$CONTAINER_IMAGE_SHA256" HARNESS_COMPLETE="$complete" \
@@ -366,7 +355,7 @@ sandbox() {   # run "$1" in the sandbox; the venv comes from the environment
       -e TORCH_HOME=/work/.cache/torch -e UV_CACHE_DIR=/work/.cache/uv \
       -e UV_PROJECT_ENVIRONMENT=/opt/autoembed/.venv \
       -e ANTHROPIC_API_KEY -e CLAUDE_CODE_OAUTH_TOKEN \
-      -e OPENAI_API_KEY \
+      -e OPENAI_API_KEY -e GEMINI_API_KEY -e GOOGLE_API_KEY \
       "${DOCKER_AUTH_ENV[@]}" \
       autoembed bash -c "$1"
   elif [ "$MODE" = enroot ]; then
@@ -382,7 +371,7 @@ sandbox() {   # run "$1" in the sandbox; the venv comes from the environment
         -e CUDA_VISIBLE_DEVICES=0 -e HOME=/work/.home \
         -e HF_HOME=/work/.cache/huggingface -e TORCH_HOME=/work/.cache/torch -e UV_CACHE_DIR=/work/.cache/uv \
         -e UV_PROJECT_ENVIRONMENT=/opt/autoembed/.venv \
-        -e ANTHROPIC_API_KEY -e CLAUDE_CODE_OAUTH_TOKEN -e OPENAI_API_KEY \
+        -e ANTHROPIC_API_KEY -e CLAUDE_CODE_OAUTH_TOKEN -e OPENAI_API_KEY -e GEMINI_API_KEY -e GOOGLE_API_KEY \
         "${ENROOT_AUTH_ENV[@]}" \
         "$ENROOT_CONTAINER" bash -c "cd /work && $1"
   else
@@ -463,7 +452,7 @@ sandbox 'uv run --no-sync python check_cuda.py' \
 case "$AGENT" in
   claude) VERSION_COMMAND='claude --version' ;;
   codex) VERSION_COMMAND='codex --version' ;;
-  antigravity) VERSION_COMMAND='agy --version' ;;
+  gemini) VERSION_COMMAND='gemini --version' ;;
 esac
 AGENT_VERSION="$(sandbox "$VERSION_COMMAND" 2>/dev/null | tail -n1 || true)"
 echo ">> agent version=${AGENT_VERSION:-unknown}"
@@ -485,8 +474,15 @@ RECOVERY_PID=$!
 
 write_run_meta false
 set +e
+# Append, never truncate: the sandbox can restart within a run, and a fresh `tee`
+# would discard every session before it. usage_tap records token and cost events as
+# they stream, so accounting survives a truncated or lost trace.
+: > "$RESULTS/trace.log"
+: > "$RESULTS/usage.jsonl"
 sandbox "timeout --signal=TERM --kill-after=30s $LIMIT bash solve.sh" 2>&1 \
-  | python3 "$ROOT/scripts/timestamp_lines.py" | tee "$RESULTS/trace.log" \
+  | python3 "$ROOT/scripts/timestamp_lines.py" \
+  | tee -a "$RESULTS/trace.log" \
+  | python3 "$ROOT/scripts/usage_tap.py" "$RESULTS/usage.jsonl" \
   | { python3 "$ROOT/scripts/pretty_stream.py" 2>/dev/null || true; cat >/dev/null; }
 rc=${PIPESTATUS[0]}
 set -e

@@ -1,47 +1,38 @@
 #!/bin/bash
-# Launch Codex CLI; re-prompt on early exit until the budget is spent.
-unset ANTHROPIC_API_KEY
+# Run the official Codex CLI and resume only after an early exit.
+set -uo pipefail
+
+unset ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN GEMINI_API_KEY GOOGLE_API_KEY
 MODEL="${AGENT_CONFIG:-gpt-5.6-sol}"
 REASONING="${AUTOEMBED_AGENT_REASONING:-high}"
 [ "${AGENT_AUTH_MODE:-}" = subscription ] && unset OPENAI_API_KEY
-
-# Point the agent at the staged file: a multi-line $PROMPT is truncated at its first
-# newline crossing the container boundary, so the env var cannot carry the task.
-TASK="Read $PWD/instructions.md completely, then carry out the task it specifies. Begin now and continue autonomously until the time budget expires."
-STATUS_FILE="/tmp/autoembed-codex-status.$$"
-trap 'rm -f -- "$STATUS_FILE"' EXIT
+MIN_REMAINING_MINUTES=30
+INITIAL_PROMPT="Read $PWD/instructions.md completely, then carry out the task autonomously. Run required training and evaluation processes to completion before exiting, and ensure the best valid submission is saved in final_model/."
 
 run_codex() {
-    codex "$@" | tee "$STATUS_FILE"
-    local command_rc=${PIPESTATUS[0]}
-    if grep -qiE '"type"[[:space:]]*:[[:space:]]*"error".*(usage limit|quota)' "$STATUS_FILE"; then
-        echo "!! Codex usage quota exhausted; stopping retries" >&2
-        return 75
-    fi
-    return "$command_rc"
+    codex --search exec --json --skip-git-repo-check --yolo \
+        --model "$MODEL" -c "model_reasoning_effort=\"$REASONING\"" "$@"
 }
 
-run_codex --search exec --json --skip-git-repo-check --yolo \
-    --model "$MODEL" -c "model_reasoning_effort=\"$REASONING\"" "$TASK"
-agent_rc=$?
-[ "$agent_rc" -eq 75 ] && exit 75
-[ "$agent_rc" -ne 0 ] && exit "$agent_rc"
+started="$(date +%s)"
+if ! run_codex "$INITIAL_PROMPT"; then
+    if [ "$(( $(date +%s) - started ))" -lt 300 ]; then
+        echo "!! Codex failed within 5 minutes; treating as setup/auth failure" >&2
+        exit 1
+    fi
+    echo "!! Codex exited with an error after doing work; attempting a resume" >&2
+fi
+
 while :; do
     left="$(bash timer.sh 2>/dev/null)"
-    printf '%s' "$left" | grep -qiE 'exhaust|expired' && break
-    mins="$(printf '%s' "$left" | grep -oE '[0-9]+' | head -1)"
-    { [ -z "$mins" ] || [ "$mins" -lt 5 ]; } && break
-    sleep 60   # let background work progress
-    # varied wording + timestamp: an unvarying reprompt invites the model to pattern-complete a fake user turn
-    case $((RANDOM % 3)) in
-        0) msg="You still have $left. Keep improving final_model/ (your work is in this directory): check any background jobs, run evaluate() on the dev suite, and continue training until the model is as good as you can make it." ;;
-        1) msg="Time remaining: $left. Continue improving final_model/ in this directory — check background jobs, run evaluate() on the dev suite, and keep iterating." ;;
-        2) msg="Harness check-in, $left left. Resume work on final_model/ in this directory: verify background jobs and the dev-suite score, then continue training." ;;
-    esac
-    msg="$(printf '[harness %s] %s' "$(date +%H:%M:%S)" "$msg")"
-    run_codex --search exec resume --last --json --skip-git-repo-check --yolo \
-        --model "$MODEL" -c "model_reasoning_effort=\"$REASONING\"" "$msg"
-    agent_rc=$?
-    [ "$agent_rc" -eq 75 ] && exit 75
-    [ "$agent_rc" -ne 0 ] && exit "$agent_rc"
+    mins="$(printf '%s\n' "$left" | grep -oE '^[0-9]+' || true)"
+    { [ -z "$mins" ] || [ "$mins" -lt "$MIN_REMAINING_MINUTES" ]; } && break
+
+    continuation="You have $left. Continue improving the result and maximize development-benchmark performance. Run required training and evaluation processes to completion before exiting, and ensure the best valid submission is saved in final_model/."
+    if ! codex --search exec resume --last --json --skip-git-repo-check --yolo \
+        --model "$MODEL" -c "model_reasoning_effort=\"$REASONING\"" \
+        "$continuation"; then
+        echo "!! Codex resume failed; retrying after a short backoff" >&2
+        sleep 120
+    fi
 done

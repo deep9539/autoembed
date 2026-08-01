@@ -19,12 +19,13 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen
 
 ARG AGENT_CLI=claude
+ARG CLAUDE_CLI_VERSION=2.1.218
+ARG CODEX_CLI_VERSION=0.145.0
+ARG GEMINI_CLI_VERSION=0.53.0
 RUN case "$AGENT_CLI" in \
-      claude) npm install -g @anthropic-ai/claude-code ;; \
-      codex) npm install -g @openai/codex ;; \
-      antigravity) mkdir -p /tmp/agy-install \
-        && curl -fsSL https://antigravity.google/cli/install.sh \
-        | HOME=/tmp/agy-install bash -s -- --dir /usr/local/bin ;; \
+      claude) npm install -g "@anthropic-ai/claude-code@$CLAUDE_CLI_VERSION" ;; \
+      codex) npm install -g "@openai/codex@$CODEX_CLI_VERSION" ;; \
+      gemini) npm install -g "@google/gemini-cli@$GEMINI_CLI_VERSION" ;; \
       none) true ;; \
       *) echo "unknown AGENT_CLI=$AGENT_CLI" >&2; exit 2 ;; \
     esac

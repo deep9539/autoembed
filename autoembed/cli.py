@@ -35,7 +35,10 @@ def _find_root():
 
 ROOT = _find_root()
 CONFIGS = ROOT / "configs"
-DEFAULT_MODEL = {"claude": "claude-opus-5", "codex": "gpt-5.6-sol", "antigravity": "gemini-3.6-flash"}
+DEFAULT_MODEL = {
+    "claude": "claude-opus-5", "codex": "gpt-5.6-sol",
+    "gemini": "gemini-3.6-flash",
+}
 
 
 def _configs():
@@ -142,6 +145,9 @@ def cmd_run(a):
     if a.agent == "claude" and isolation in ("enroot", "docker") \
             and not (env.get("CLAUDE_CODE_OAUTH_TOKEN") or env.get("ANTHROPIC_API_KEY")):
         print("!! warning: isolated Claude run needs CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY", file=sys.stderr)
+    if a.agent == "gemini" and isolation in ("enroot", "docker") \
+            and not (env.get("GEMINI_API_KEY") or env.get("GOOGLE_API_KEY")):
+        print("!! warning: isolated Gemini run needs GEMINI_API_KEY or GOOGLE_API_KEY", file=sys.stderr)
 
     _launch(cmd, env, a)
 
@@ -161,7 +167,7 @@ def main():
 
     r = sub.add_parser("run", help="launch an agent on a task config")
     _common(r)
-    r.add_argument("--agent", default="claude", choices=["claude", "codex", "antigravity"])
+    r.add_argument("--agent", default="claude", choices=["claude", "codex", "gemini"])
     r.add_argument("--model", help=f"exact agent model id (defaults: {DEFAULT_MODEL})")
     r.add_argument("--base", help="override base model (recorded in run provenance)")
     r.add_argument("--base-revision", help="immutable 40-character commit for --base")

@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Build an immutable Enroot image for cluster runs without a Docker daemon.
-# Usage: scripts/build_enroot.sh [claude|codex|antigravity|none]
+# Usage: scripts/build_enroot.sh [claude|codex|gemini|none]
 set -euo pipefail
 
 AGENT_CLI="${1:-claude}"
+CLAUDE_CLI_VERSION="${CLAUDE_CLI_VERSION:-2.1.218}"
+CODEX_CLI_VERSION="${CODEX_CLI_VERSION:-0.145.0}"
+GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION:-0.53.0}"
 case "$AGENT_CLI" in
-  claude) NPM_PACKAGE="@anthropic-ai/claude-code" ;;
-  codex) NPM_PACKAGE="@openai/codex" ;;
-  antigravity) NPM_PACKAGE="" ;;
+  claude) NPM_PACKAGE="@anthropic-ai/claude-code@$CLAUDE_CLI_VERSION" ;;
+  codex) NPM_PACKAGE="@openai/codex@$CODEX_CLI_VERSION" ;;
+  gemini) NPM_PACKAGE="@google/gemini-cli@$GEMINI_CLI_VERSION" ;;
   none) NPM_PACKAGE="" ;;
   *) echo "unknown agent CLI: $AGENT_CLI" >&2; exit 2 ;;
 esac
@@ -63,11 +66,6 @@ enroot start --root --rw \
     uv sync --no-dev --frozen
     if [ -n "$NPM_PACKAGE" ]; then
       npm install -g "$NPM_PACKAGE"
-    fi
-    if [ "$AGENT_CLI" = antigravity ]; then
-      mkdir -p /tmp/agy-install
-      curl -fsSL https://antigravity.google/cli/install.sh \
-        | HOME=/tmp/agy-install bash -s -- --dir /usr/local/bin
     fi
     printf "%s\n" "$AGENT_CLI" > /opt/autoembed/agent-cli
     apt-get clean
