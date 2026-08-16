@@ -331,7 +331,7 @@ start_vllm() {
   local port="${QWEN_PORT:-8000}"
   echo ">> Multi-GPU partition detected. Starting local Qwen-27B serving on GPUs $VLLM_GPUS..."
   
-  local model_arg="Qwen/Qwen3.8-27B"
+  local model_arg="Qwen/Qwen3.6-27B"
   local tp_size
   tp_size="$(echo "$VLLM_GPUS" | tr ',' '\n' | wc -l)"
   
@@ -357,7 +357,7 @@ start_vllm() {
     export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     export TRITON_CACHE_DIR="/tmp/triton-${SLURM_JOB_ID:-local}"
     mkdir -p "$TRITON_CACHE_DIR" && chmod 1777 "$TRITON_CACHE_DIR"
-    # Since Qwen3.8-27B is not on disk yet, do not set HF_HUB_OFFLINE=1 so it can download online
+    # Since Qwen3.6-27B needs to be fetched, set HF_HUB_OFFLINE=0 to allow online downloading
     export HF_HUB_OFFLINE=0
     export LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:${LIBRARY_PATH:-}"
     export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
@@ -378,7 +378,7 @@ start_vllm() {
       --enable-auto-tool-choice \
       --tool-call-parser qwen3_coder \
       --reasoning-parser qwen3 \
-      --served-model-name qwen3.8-27b
+      --served-model-name qwen3.6-27b
   ) > "$RESULTS/vllm.log" 2>&1 &
   VLLM_PID=$!
   

@@ -43,5 +43,5 @@ inference APIs or services. The final model must work in the starting environmen
 
 A powerful LLM (Qwen-27B) is hosted locally on the host machine and is available to assist you.
 - API Endpoint URL: The endpoint base URL is provided in the environment variable `QWEN_API_BASE` (e.g. `http://host.docker.internal:8000/v1` or `http://127.0.0.1:8000/v1`).
-- Model Name: `Qwen/Qwen3.8-27B`
+- Model Name: `Qwen/Qwen3.6-27B`
 - Format: OpenAI-compatible API. You can write Python code inside your training scripts to query this model for text rewriting, synthetic data pair generation, labeling, or other tasks. Feel free to use standard Python libraries or install helper packages (e.g., `openai`) if needed.
