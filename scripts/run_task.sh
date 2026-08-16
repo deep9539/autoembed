@@ -348,6 +348,12 @@ start_vllm() {
   # Launch inside an isolated subshell so that compiler library exports 
   # do NOT bleed into and contaminate the parent autoembed script's active python environment.
   (
+    # Activate the project's own local .venv (now containing vllm on a stable Python <3.13)
+    if [ -f "$ROOT/.venv/bin/activate" ]; then
+      echo ">> Activating project local .venv inside vLLM subshell..."
+      source "$ROOT/.venv/bin/activate"
+    fi
+    
     export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     export TRITON_CACHE_DIR="/tmp/triton-${SLURM_JOB_ID:-local}"
     mkdir -p "$TRITON_CACHE_DIR" && chmod 1777 "$TRITON_CACHE_DIR"
