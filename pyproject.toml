@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "autoembed"
 version = "0.1.0"
 description = "A framework for agentic embedding-model training"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10"
 dependencies = [
     "sentence-transformers>=5.0",
     "mteb>=1.12",
