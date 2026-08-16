@@ -357,6 +357,8 @@ start_vllm() {
     export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     export TORCHDYNAMO_DISABLE=1
     export VLLM_USE_MODERN_TORCH_COMPILE=0
+    export VLLM_USE_AOT_COMPILE=0
+    export VLLM_DISABLE_COMPILE_CACHE=1
     export TRITON_CACHE_DIR="/tmp/triton-${SLURM_JOB_ID:-local}"
     mkdir -p "$TRITON_CACHE_DIR" && chmod 1777 "$TRITON_CACHE_DIR"
     # Since Qwen3.6-27B needs to be fetched, set HF_HUB_OFFLINE=0 to allow online downloading
