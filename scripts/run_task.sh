@@ -332,6 +332,8 @@ start_vllm() {
   echo ">> Multi-GPU partition detected. Starting vLLM serving Qwen on GPUs $VLLM_GPUS..."
   export VLLM_USE_V1=0
   export VLLM_ENGINE_STARTUP_TIMEOUT_S=1800
+  export VLLM_WORKER_MULTIPROCESS_METHOD=spawn
+  export NCCL_IB_DISABLE=1
   export CUDA_VISIBLE_DEVICES="$VLLM_GPUS"
   vllm serve Qwen/Qwen3.8-27B \
     --tensor-parallel-size "$(echo "$VLLM_GPUS" | tr ',' '\n' | wc -l)" \
@@ -344,7 +346,7 @@ start_vllm() {
   while ! curl -s "http://127.0.0.1:$port/v1/models" >/dev/null; do
     if ! kill -0 "$VLLM_PID" 2>/dev/null; then
       echo "!! vLLM failed to start. Last lines of $RESULTS/vllm.log:" >&2
-      tail -n 20 "$RESULTS/vllm.log" >&2
+      tail -n 100 "$RESULTS/vllm.log" >&2
       exit 1
     fi
     retries=$((retries - 1))
