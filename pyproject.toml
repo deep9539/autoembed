@@ -11,7 +11,7 @@ dependencies = [
     "sentence-transformers>=5.0",
     "mteb>=1.12",
     "peft>=0.17",
-    "torch>=2.2,<2.11",
+    "torch==2.12.*",
     "datasets>=2.19",
     "accelerate>=0.30",
     "vllm>=0.17.1",
