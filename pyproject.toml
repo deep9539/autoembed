@@ -15,7 +15,6 @@ dependencies = [
     "datasets>=2.19",
     "accelerate>=0.30",
     "vllm>=0.17.1",
-    "transformers>=5.8.0",
 ]
 
 [project.scripts]
