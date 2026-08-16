@@ -6,11 +6,13 @@
 #   scripts/gpu.sh nvidia-smi                    # sanity check
 #   TIME=12:00:00 AUTOEMBED_CONFIG=configs/specialization/legal.json HOURS=10 scripts/gpu.sh scripts/run_task.sh claude
 #
-# Tunables via env: PART (partition), TIME (wall limit), NODE (nodelist), EXCLUDE (nodes to avoid).
+# Tunables via env: PART (partition), TIME (wall limit), NODE (nodelist), EXCLUDE (nodes to avoid), GPUS (gpu count).
 set -euo pipefail
 PART="${PART:-shared}"   # guest is preemptible; a preempted long run loses its budget
 TIME="${TIME:-01:00:00}"  # default wall limit
-srun_args=(--partition="$PART" --gres=gpu:1 --time="$TIME"
+GPUS="${GPUS:-1}"        # default number of GPUs
+
+srun_args=(--partition="$PART" --gres="gpu:$GPUS" --time="$TIME"
            ${NODE:+--nodelist="$NODE"} ${EXCLUDE:+--exclude="$EXCLUDE"}
            --job-name=autoembed --export=ALL,REQUIRE_GPU_ENFORCEMENT=1)
 

@@ -323,8 +323,55 @@ stop_recovery() {
   fi
 }
 
+VLLM_PID=""
+start_vllm() {
+  if [ -z "${VLLM_GPUS:-}" ]; then
+    return 0
+  fi
+  local port="${QWEN_PORT:-8000}"
+  echo ">> Multi-GPU partition detected. Starting vLLM serving Qwen on GPUs $VLLM_GPUS..."
+  CUDA_VISIBLE_DEVICES="$VLLM_GPUS" vllm serve Qwen/Qwen3.8-27B \
+    --tensor-parallel-size "$(echo "$VLLM_GPUS" | tr ',' '\n' | wc -l)" \
+    --port "$port" \
+    --host 0.0.0.0 \
+    --disable-log-requests > "$RESULTS/vllm.log" 2>&1 &
+  VLLM_PID=$!
+  
+  echo ">> Waiting for Qwen (vLLM) to start on port $port..."
+  local retries=120
+  while ! curl -s "http://127.0.0.1:$port/v1/models" >/dev/null; do
+    if ! kill -0 "$VLLM_PID" 2>/dev/null; then
+      echo "!! vLLM failed to start. Last lines of $RESULTS/vllm.log:" >&2
+      tail -n 20 "$RESULTS/vllm.log" >&2
+      exit 1
+    fi
+    retries=$((retries - 1))
+    if [ "$retries" -le 0 ]; then
+      echo "!! Timed out waiting for vLLM to start." >&2
+      exit 1
+    fi
+    sleep 5
+  done
+  echo ">> Qwen (vLLM) is ready on http://127.0.0.1:$port/v1"
+  if [ "$MODE" = docker ]; then
+    export QWEN_API_BASE="http://host.docker.internal:$port/v1"
+  else
+    export QWEN_API_BASE="http://127.0.0.1:$port/v1"
+  fi
+}
+
+stop_vllm() {
+  if [ -n "$VLLM_PID" ]; then
+    echo ">> Terminating background vLLM server (PID $VLLM_PID)..."
+    kill "$VLLM_PID" 2>/dev/null || true
+    wait "$VLLM_PID" 2>/dev/null || true
+    VLLM_PID=""
+  fi
+}
+
 on_signal() {
   stop_recovery
+  stop_vllm
   snapshot_final_model best-effort || true
   [ -z "${START:-}" ] || write_run_meta false || true
   exit 143
@@ -332,6 +379,7 @@ on_signal() {
 
 on_exit() {
   snapshot_final_model best-effort || true
+  stop_vllm
   cleanup_auth_stage
 }
 
@@ -346,7 +394,7 @@ sandbox() {   # run "$1" in the sandbox; the venv comes from the environment
     # NVIDIA's device cgroup exposes only SELECTED_GPU to the container. It is
     # renumbered to logical CUDA device 0 inside, so do not pass the host index
     # as CUDA_VISIBLE_DEVICES.
-    docker run --rm --gpus "device=$SELECTED_GPU" -v "$WORK":/work "${DOCKER_AUTH_MOUNT[@]}" -w /work \
+    docker run --rm --gpus "device=$SELECTED_GPU" --add-host=host.docker.internal:host-gateway -v "$WORK":/work "${DOCKER_AUTH_MOUNT[@]}" -w /work \
       -e PROMPT -e AGENT_CONFIG -e DEADLINE -e AGENT_AUTH_MODE -e AUTOEMBED_AGENT_REASONING \
       -e AUTOEMBED_BASE_MODEL -e AUTOEMBED_BASE_REVISION -e AUTOEMBED_DEV_TASKS -e AUTOEMBED_QUERY_SPLIT -e AUTOEMBED_EXAMPLE_SPLIT -e AUTOEMBED_PER_TASK_TIMEOUT \
       -e TORCHDYNAMO_DISABLE \
@@ -356,6 +404,7 @@ sandbox() {   # run "$1" in the sandbox; the venv comes from the environment
       -e UV_PROJECT_ENVIRONMENT=/opt/autoembed/.venv \
       -e ANTHROPIC_API_KEY -e CLAUDE_CODE_OAUTH_TOKEN \
       -e OPENAI_API_KEY -e GEMINI_API_KEY -e GOOGLE_API_KEY \
+      -e QWEN_API_BASE \
       "${DOCKER_AUTH_ENV[@]}" \
       autoembed bash -c "$1"
   elif [ "$MODE" = enroot ]; then
@@ -372,6 +421,7 @@ sandbox() {   # run "$1" in the sandbox; the venv comes from the environment
         -e HF_HOME=/work/.cache/huggingface -e TORCH_HOME=/work/.cache/torch -e UV_CACHE_DIR=/work/.cache/uv \
         -e UV_PROJECT_ENVIRONMENT=/opt/autoembed/.venv \
         -e ANTHROPIC_API_KEY -e CLAUDE_CODE_OAUTH_TOKEN -e OPENAI_API_KEY -e GEMINI_API_KEY -e GOOGLE_API_KEY \
+        -e QWEN_API_BASE \
         "${ENROOT_AUTH_ENV[@]}" \
         "$ENROOT_CONTAINER" bash -c "cd /work && $1"
   else
@@ -392,14 +442,20 @@ if [ -n "${SLURM_JOB_ID:-}" ]; then
     exit 1
   fi
   VISIBLE_GPUS="${CUDA_VISIBLE_DEVICES:-}"
-  SELECTED_GPU="${VISIBLE_GPUS%%,*}"
-  if [ -z "$SELECTED_GPU" ] || [ "$SELECTED_GPU" = "NoDevFiles" ]; then
+  if [ -z "$VISIBLE_GPUS" ] || [ "$VISIBLE_GPUS" = "NoDevFiles" ]; then
     echo "!! Slurm job has no visible GPU allocation" >&2
     exit 1
   fi
-  if [[ "${CUDA_VISIBLE_DEVICES:-}" == *,* ]]; then
-    echo "!! expected a one-GPU Slurm allocation, got CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES" >&2
-    exit 1
+  if [[ "$VISIBLE_GPUS" == *,* ]]; then
+    SELECTED_GPU="${VISIBLE_GPUS%%,*}"
+    VLLM_GPUS="${VISIBLE_GPUS#*,}"
+    echo ">> Multi-GPU Slurm allocation detected: $VISIBLE_GPUS"
+    echo ">> SELECTED_GPU (agent) = $SELECTED_GPU"
+    echo ">> VLLM_GPUS (Qwen server) = $VLLM_GPUS"
+  else
+    SELECTED_GPU="$VISIBLE_GPUS"
+    VLLM_GPUS=""
+    echo ">> Single-GPU Slurm allocation detected: SELECTED_GPU=$SELECTED_GPU"
   fi
   # fail fast if the assigned device is already occupied by an untracked process (e.g. a vLLM server)
   FREE_MIB="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$SELECTED_GPU" 2>/dev/null || echo 0)"
@@ -469,6 +525,7 @@ fi
 # START must precede the fork: the background loop inherits the environment as it
 # stands at fork time, and write_run_meta reads START under `set -u`.
 START=$(date +%s)
+start_vllm
 recovery_loop &
 RECOVERY_PID=$!
 
