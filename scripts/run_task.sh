@@ -330,7 +330,10 @@ start_vllm() {
   fi
   local port="${QWEN_PORT:-8000}"
   echo ">> Multi-GPU partition detected. Starting vLLM serving Qwen on GPUs $VLLM_GPUS..."
-  VLLM_USE_V1=0 CUDA_VISIBLE_DEVICES="$VLLM_GPUS" vllm serve Qwen/Qwen3.8-27B \
+  export VLLM_USE_V1=0
+  export VLLM_ENGINE_STARTUP_TIMEOUT_S=1800
+  export CUDA_VISIBLE_DEVICES="$VLLM_GPUS"
+  vllm serve Qwen/Qwen3.8-27B \
     --tensor-parallel-size "$(echo "$VLLM_GPUS" | tr ',' '\n' | wc -l)" \
     --port "$port" \
     --host 0.0.0.0 > "$RESULTS/vllm.log" 2>&1 &
