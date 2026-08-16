@@ -329,16 +329,51 @@ start_vllm() {
     return 0
   fi
   local port="${QWEN_PORT:-8000}"
-  echo ">> Multi-GPU partition detected. Starting vLLM serving Qwen on GPUs $VLLM_GPUS..."
-  export VLLM_USE_V1=0
-  export VLLM_ENGINE_STARTUP_TIMEOUT_S=1800
-  export VLLM_WORKER_MULTIPROCESS_METHOD=spawn
-  export NCCL_IB_DISABLE=1
-  export CUDA_VISIBLE_DEVICES="$VLLM_GPUS"
-  vllm serve Qwen/Qwen3.8-27B \
-    --tensor-parallel-size "$(echo "$VLLM_GPUS" | tr ',' '\n' | wc -l)" \
-    --port "$port" \
-    --host 0.0.0.0 > "$RESULTS/vllm.log" 2>&1 &
+  echo ">> Multi-GPU partition detected. Starting local Qwen-27B serving on GPUs $VLLM_GPUS..."
+  
+  local model_arg="Qwen/Qwen3.8-27B"
+  local tp_size
+  tp_size="$(echo "$VLLM_GPUS" | tr ',' '\n' | wc -l)"
+  
+  # Dynamically configure context len and memory utilization based on TP size
+  local max_model_len=262144
+  local gpu_utilization=0.92
+  if [ "$tp_size" -eq 1 ]; then
+    max_model_len=32768
+    gpu_utilization=0.80
+  fi
+  
+  echo ">> Serve configuration: tp_size=$tp_size, max_model_len=$max_model_len, gpu_utilization=$gpu_utilization"
+  
+  # Launch inside an isolated subshell so that compiler library exports 
+  # do NOT bleed into and contaminate the parent autoembed script's active python environment.
+  (
+    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    export TRITON_CACHE_DIR="/tmp/triton-${SLURM_JOB_ID:-local}"
+    mkdir -p "$TRITON_CACHE_DIR" && chmod 1777 "$TRITON_CACHE_DIR"
+    # Since Qwen3.8-27B is not on disk yet, do not set HF_HUB_OFFLINE=1 so it can download online
+    export HF_HUB_OFFLINE=0
+    export LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:${LIBRARY_PATH:-}"
+    export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+    export TRITON_LIBCUDA_PATH=/usr/lib/x86_64-linux-gnu
+    export CPATH="/data/home/lakshyaaagrawal/.python-include:${CPATH:-}"
+    export C_INCLUDE_PATH="/data/home/lakshyaaagrawal/.python-include:${C_INCLUDE_PATH:-}"
+    export CUDA_VISIBLE_DEVICES="$VLLM_GPUS"
+
+    vllm serve "$model_arg" \
+      --tensor-parallel-size "$tp_size" \
+      --host 0.0.0.0 \
+      --port "$port" \
+      --dtype bfloat16 \
+      --max-model-len "$max_model_len" \
+      --gpu-memory-utilization "$gpu_utilization" \
+      --trust-remote-code \
+      --disable-custom-all-reduce \
+      --enable-auto-tool-choice \
+      --tool-call-parser qwen3_coder \
+      --reasoning-parser qwen3 \
+      --served-model-name qwen3.8-27b
+  ) > "$RESULTS/vllm.log" 2>&1 &
   VLLM_PID=$!
   
   echo ">> Waiting for Qwen (vLLM) to start on port $port..."
