@@ -333,8 +333,7 @@ start_vllm() {
   CUDA_VISIBLE_DEVICES="$VLLM_GPUS" vllm serve Qwen/Qwen3.8-27B \
     --tensor-parallel-size "$(echo "$VLLM_GPUS" | tr ',' '\n' | wc -l)" \
     --port "$port" \
-    --host 0.0.0.0 \
-    --disable-log-requests > "$RESULTS/vllm.log" 2>&1 &
+    --host 0.0.0.0 > "$RESULTS/vllm.log" 2>&1 &
   VLLM_PID=$!
   
   echo ">> Waiting for Qwen (vLLM) to start on port $port..."
